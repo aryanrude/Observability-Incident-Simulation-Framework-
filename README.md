@@ -24,31 +24,32 @@ It helps answer: "If this breaks, will we actually know — and will we know wha
 - Validates CloudWatch alarms, Prometheus metrics, and Grafana dashboards
 - Tests on-call runbooks against actual failures
 - Sends SNS notifications just like in production
-
 ---
 
 ## Architecture
+
+```
 ┌───────────────────────────────────────────────────────┐
-│                EC2 Instance (t3.micro)                | 
+│                   EC2 Instance (t3.micro)              │
 │                                                       │
-│  simulate_failures.py  →  psutil / tc / disk I/O      │
+│  simulate_failures.py ──► psutil / tc / disk I/O     │
 │         │                                             │
 │         ▼                                             │
 │  prometheus_exporter.py (:8000/metrics)               │
 │         │                                             │
-│    ├────► Prometheus → Grafana Dashboards             │
-│    └────► boto3 → CloudWatch Custom Metrics           │
+│         ├──► Prometheus scrape ──► Grafana dashboards │
+│         │                                             │
+│         └──► boto3.CloudWatch.put_metric_data         │
 │                    │                                  │
 │                    ▼                                  │
-│               CloudWatch Alarms                       │
+│            CloudWatch Alarms                          │
 │                    │                                  │
 │                    ▼                                  │
-│                 SNS → Email                           │
+│              SNS Topic ──► Email notification         │
 └───────────────────────────────────────────────────────┘
 
-
-
-Infrastructure is fully managed with Terraform.
+Infrastructure provisioned by Terraform (VPC, EC2, IAM, SNS, CW Log Group)
+```
 
 ---
 
@@ -65,21 +66,23 @@ Infrastructure is fully managed with Terraform.
 
 ## Project Structure
 
+```
 observability-framework/
 ├── scripts/
-│   ├── simulate_failures.py        # Main failure injector
-│   ├── prometheus_exporter.py      # Prometheus metrics endpoint
-│   └── setup_cloudwatch_alarms.py  # Creates CloudWatch alarms
+│   ├── simulate_failures.py        # Core failure simulator
+│   ├── prometheus_exporter.py      # Prometheus metrics server
+│   └── setup_cloudwatch_alarms.py  # One-time alarm provisioning
 ├── terraform/
-│   └── main.tf                     # Full infra (VPC, EC2, IAM, SNS)
+│   └── main.tf                     # EC2 + VPC + IAM + SNS + CW
 ├── dashboards/
-│   └── simulation_dashboard.json    # Grafana dashboard
+│   └── simulation_dashboard.json   # Grafana dashboard (import-ready)
 ├── runbooks/
-│   └── INCIDENT_RUNBOOK.md         # Tested response procedures
+│   └── INCIDENT_RUNBOOK.md         # Response procedures per scenario
 ├── requirements.txt
 └── README.md
+```
 
-
+---
 
 
 ## Observing Results
@@ -107,7 +110,7 @@ Incident Management — Runbook creation and validation through live simulations
 
 
 Teardown
-Bashcd terraform/
+Bash   cd terraform/
 terraform destroy -var="key_name=your-key-pair" -var="alert_email=your@email.com"
 
 Status: Fully working. I tested it end-to-end multiple times with different scenarios. Screenshots from real runs are available in the screenshot/ folder.
