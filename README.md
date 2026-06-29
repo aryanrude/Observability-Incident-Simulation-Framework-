@@ -182,5 +182,3 @@ terraform destroy -var="key_name=your-key-pair" -var="alert_email=you@example.co
 
 ---
 
-## License
-MIT — use freely for portfolio, learning, and interview demonstrations.
