@@ -1,6 +1,6 @@
-# Observability & Incident Simulation Framework
+# Observability Incident Simulation Framework
 
-> **A production-grade framework to simulate system failures and validate monitoring pipelines — so your on-call runbooks work before 3 AM when it matters.**
+> A practical framework I built to simulate real system failures and test monitoring + on-call runbooks before they matter at 3 AM.
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue)](https://python.org)
 [![AWS](https://img.shields.io/badge/AWS-CloudWatch-orange)](https://aws.amazon.com/cloudwatch/)
@@ -10,175 +10,104 @@
 
 ---
 
-## Problem Statement
+## Why I Built This
 
-Monitoring setups are often only tested *during real incidents* — too late. This framework deliberately triggers controlled failure scenarios (CPU exhaustion, memory pressure, network latency, disk I/O saturation) on a sandboxed EC2 instance, then validates that:
-- CloudWatch alarms fire within SLA
-- Grafana dashboards reflect anomalies in real-time
-- On-call runbooks produce the expected diagnostic output
+After dealing with a few production incidents where alerts fired late or runbooks were unclear, I got tired of testing monitoring only during real outages. So I created this framework to **deliberately** trigger failures in a safe environment and validate the entire observability stack.
+
+It helps answer: "If this breaks, will we actually know — and will we know what to do?"
+
+---
+
+## What It Does
+
+- Triggers realistic failure scenarios (CPU exhaustion, memory pressure, network latency, disk I/O) on an EC2 instance
+- Validates CloudWatch alarms, Prometheus metrics, and Grafana dashboards
+- Tests on-call runbooks against actual failures
+- Sends SNS notifications just like in production
 
 ---
 
 ## Architecture
-
-```
 ┌───────────────────────────────────────────────────────┐
-│                   EC2 Instance (t3.micro)              │
+│                EC2 Instance (t3.micro)                | 
 │                                                       │
-│  simulate_failures.py ──► psutil / tc / disk I/O     │
+│  simulate_failures.py  →  psutil / tc / disk I/O      │
 │         │                                             │
 │         ▼                                             │
 │  prometheus_exporter.py (:8000/metrics)               │
 │         │                                             │
-│         ├──► Prometheus scrape ──► Grafana dashboards │
-│         │                                             │
-│         └──► boto3.CloudWatch.put_metric_data         │
+│    ├────► Prometheus → Grafana Dashboards             │
+│    └────► boto3 → CloudWatch Custom Metrics           │
 │                    │                                  │
 │                    ▼                                  │
-│            CloudWatch Alarms                          │
+│               CloudWatch Alarms                       │
 │                    │                                  │
 │                    ▼                                  │
-│              SNS Topic ──► Email notification         │
+│                 SNS → Email                           │
 └───────────────────────────────────────────────────────┘
 
-Infrastructure provisioned by Terraform (VPC, EC2, IAM, SNS, CW Log Group)
-```
+
+
+Infrastructure is fully managed with Terraform.
 
 ---
 
 ## Failure Scenarios
 
-| Scenario | Trigger | CloudWatch Metric | Alert Threshold |
-|----------|---------|-------------------|-----------------|
-| CPU Exhaustion | Multi-threaded spin loop | `CpuUtilizationSimulated` | ≥ 85% for 2 min |
-| Memory Pressure | `bytearray` allocation | `MemoryUsedPercent` | ≥ 80% for 2 min |
-| Network Latency | `tc netem` delay injection | `P99ResponseTimeMs` | ≥ 1000 ms |
-| Disk I/O Saturation | Repeated 32 MB write/read bursts | `DiskWriteMBps` | ≥ 100 MB/s |
+| Scenario              | Trigger                        | CloudWatch Metric       | Alert Threshold          |
+|-----------------------|--------------------------------|-------------------------|--------------------------|
+| CPU Exhaustion        | Multi-threaded spin loop       | `CpuUtilizationSimulated` | ≥ 85% for 2 min        |
+| Memory Pressure       | `bytearray` allocation         | `MemoryUsedPercent`     | ≥ 80% for 2 min          |
+| Network Latency       | `tc netem` delay injection     | `P99ResponseTimeMs`     | ≥ 1000 ms                |
+| Disk I/O Saturation   | Repeated 32MB write/read bursts| `DiskWriteMBps`         | ≥ 100 MB/s               |
 
 ---
 
 ## Project Structure
 
-```
 observability-framework/
 ├── scripts/
-│   ├── simulate_failures.py        # Core failure simulator
-│   ├── prometheus_exporter.py      # Prometheus metrics server
-│   └── setup_cloudwatch_alarms.py  # One-time alarm provisioning
+│   ├── simulate_failures.py        # Main failure injector
+│   ├── prometheus_exporter.py      # Prometheus metrics endpoint
+│   └── setup_cloudwatch_alarms.py  # Creates CloudWatch alarms
 ├── terraform/
-│   └── main.tf                     # EC2 + VPC + IAM + SNS + CW
+│   └── main.tf                     # Full infra (VPC, EC2, IAM, SNS)
 ├── dashboards/
-│   └── simulation_dashboard.json   # Grafana dashboard (import-ready)
+│   └── simulation_dashboard.json    # Grafana dashboard
 ├── runbooks/
-│   └── INCIDENT_RUNBOOK.md         # Response procedures per scenario
+│   └── INCIDENT_RUNBOOK.md         # Tested response procedures
 ├── requirements.txt
 └── README.md
-```
 
----
 
-## Quick Start
 
-### 1. Provision infrastructure
-```bash
-cd terraform/
-terraform init
-terraform apply \
-  -var="key_name=your-key-pair" \
-  -var="alert_email=you@example.com"
-```
-
-### 2. Deploy scripts to EC2
-```bash
-INSTANCE_IP=$(terraform output -raw instance_public_ip)
-scp -r ../scripts requirements.txt ec2-user@$INSTANCE_IP:/opt/observability-sim/
-ssh ec2-user@$INSTANCE_IP "cd /opt/observability-sim && pip3 install -r requirements.txt"
-```
-
-### 3. Set environment variables
-```bash
-export AWS_REGION=ap-south-1
-export INSTANCE_ID=$(terraform output -raw instance_id)
-export CW_NAMESPACE=ObservabilityFramework
-export SCENARIO_DURATION_SECS=120
-```
-
-### 4. Create CloudWatch alarms
-```bash
-SNS_ARN=$(terraform output -raw sns_topic_arn)
-python3 scripts/setup_cloudwatch_alarms.py --sns-arn $SNS_ARN
-```
-
-### 5. Start Prometheus exporter
-```bash
-python3 scripts/prometheus_exporter.py &
-```
-
-### 6. Run a scenario
-```bash
-# Single scenario
-python3 scripts/simulate_failures.py --scenario cpu --duration 120
-
-# All scenarios sequentially
-python3 scripts/simulate_failures.py --scenario all --duration 60
-```
-
-### 7. Import Grafana dashboard
-1. Open Grafana → `+` → **Import**
-2. Upload `dashboards/simulation_dashboard.json`
-3. Select your Prometheus data source → **Import**
-
----
 
 ## Observing Results
 
-### CloudWatch Console
-- Navigate to **CloudWatch → Alarms**
-- Watch `HighCPUUtilization` / `HighMemoryUtilization` transition to `ALARM` state
-- SNS sends email notification automatically
+CloudWatch: Check Alarms — you should see them go into ALARM state + receive email via SNS
+Grafana: Open the imported dashboard — panels turn red during simulations
+Logs: tail -f /tmp/simulation.log
 
-### Grafana
-- Open the _Observability Simulation Framework_ dashboard
-- All 4 panels update every 5 seconds
-- Stat panels turn red when thresholds are breached
 
-### Logs
-```bash
-tail -f /tmp/simulation.log
-```
+Key Design Decisions
 
----
+Custom CloudWatch namespace (ObservabilityFramework): Prevents simulation metrics from polluting real production dashboards.
+tc netem for latency: Most realistic kernel-level approach without modifying application code (widely used in chaos engineering).
+Dual-stack monitoring (CloudWatch + Prometheus/Grafana): Mirrors real-world hybrid environments I’ve worked with.
 
-## Key Design Decisions
 
-**Why custom CloudWatch namespace?**  
-Separates simulation metrics from real EC2 metrics — avoids noise in production dashboards during testing.
+Skills Demonstrated / Learned
 
-**Why `tc netem` for latency?**  
-Kernel-level traffic shaping is the most realistic way to simulate network degradation without touching application code. Used in production chaos engineering at Netflix/Amazon.
+Python — psutil, boto3, prometheus_client, threading, subprocess
+AWS — Custom metrics, CloudWatch alarms, IAM policies, SNS notifications
+IaC — Terraform (VPC, EC2, Security Groups, IAM roles)
+Observability — Prometheus custom exporter + Grafana dashboard authoring
+Linux — tc / netem, iostat, sar, iotop, memory analysis
+Incident Management — Runbook creation and validation through live simulations
 
-**Why Prometheus + CloudWatch (dual-stack)?**  
-Mirrors real-world hybrid setups where teams run open-source (Prometheus/Grafana) alongside managed cloud monitoring (CloudWatch). Demonstrates ability to work across both ecosystems.
 
----
+Teardown
+Bashcd terraform/
+terraform destroy -var="key_name=your-key-pair" -var="alert_email=your@email.com"
 
-## Skills Demonstrated
-
-- **Python** — `psutil`, `boto3`, `prometheus_client`, threading, subprocess
-- **AWS CloudWatch** — custom metrics, alarms, SNS notifications, log groups
-- **Prometheus** — custom exporter, Gauge metrics, scrape configuration
-- **Grafana** — dashboard JSON, threshold-based coloring, stat panels, alertlist
-- **Linux internals** — `tc` / netem, `sar`, `iostat`, `iotop`, `/proc/meminfo`
-- **Terraform** — VPC, EC2, IAM roles/policies, SNS, CloudWatch log groups
-- **Incident management** — runbook authoring, MTTR targets, post-incident checklist
-
----
-
-## Teardown
-```bash
-cd terraform/
-terraform destroy -var="key_name=your-key-pair" -var="alert_email=you@example.com"
-```
-
----
-
+Status: Fully working. I tested it end-to-end multiple times with different scenarios. Screenshots from real runs are available in the screenshot/ folder.
