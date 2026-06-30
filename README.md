@@ -132,25 +132,25 @@ One thing I learned: `TreatMissingData: notBreaching` matters — when the simul
 ## Screenshots
 
 ### All 4 alarms created — HighCPUUtilization In alarm
-![Alarms Overview](docs/screenshots/02-all-alarms-overview.png)
+![Alarms Overview](https://github.com/aryanrude/Observability-Incident-Simulation-Framework-/blob/main/screenshot/01-cpu-alarm-fired.png%20(2).png)
 
 ### HighCPUUtilization alarm detail — firing with graph
-![CPU Alarm Fired](docs/screenshots/01-cpu-alarm-fired.png)
+![CPU Alarm Fired](https://github.com/aryanrude/Observability-Incident-Simulation-Framework-/blob/main/screenshot/01-cpu-alarm-fired.png.png)
 
 ### All 6 custom metrics in CloudWatch namespace
-![Custom Metrics](docs/screenshots/03-custom-metrics-cloudwatch.png)
+![Custom Metrics](https://github.com/aryanrude/Observability-Incident-Simulation-Framework-/blob/main/screenshot/03-custom-metrics-cloudwatch.png.png)
 
 ### CpuUtilizationSimulated time series graph
-![Metrics Graph](docs/screenshots/05-cpu-metric-timeseries.png)
+![Metrics Graph](https://github.com/aryanrude/Observability-Incident-Simulation-Framework-/blob/main/screenshot/05-cpu-metric-timeseries.png.png)
 
 ### Terminal — CPU and Memory scenarios running
-![Terminal CPU Memory](docs/screenshots/06-simulation-terminal-cpu-memory.png)
+![Terminal CPU Memory](https://github.com/aryanrude/Observability-Incident-Simulation-Framework-/blob/main/screenshot/06-simulation-terminal-cpu-memory.png.png)
 
 ### Terminal — Disk I/O scenario (2300+ MB/s)
-![Terminal Disk IO](docs/screenshots/07-simulation-terminal-disk-io.png)
+![Terminal Disk IO](https://github.com/aryanrude/Observability-Incident-Simulation-Framework-/blob/main/screenshot/07-simulation-terminal-disk-io.png.png)
 
 ### Terraform destroy — 13 resources cleaned up
-![Terraform Destroy](docs/screenshots/08-terraform-destroy-complete.png)
+![Terraform Destroy](https://github.com/aryanrude/Observability-Incident-Simulation-Framework-/blob/main/screenshot/08-terraform-destroy-complete.png.png)
 
 ---
 
